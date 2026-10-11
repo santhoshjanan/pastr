@@ -1,5 +1,7 @@
 # Local data and secrets
 .env
+.env.*
+!.env.example
 *.db
 *.db-shm
 *.db-wal

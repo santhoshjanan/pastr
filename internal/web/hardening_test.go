@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -80,8 +81,14 @@ func TestAutomatedFetchersDoNotBurnViews(t *testing.T) {
 	}
 	// A phone whose model name happens to contain "bot" is still a person.
 	p2 := seed(e, e.addUser("bo", false), nil)
-	if _, body := e.getUA("/p/"+p2.Slug, "Mozilla/5.0 (Linux; Android 13; CUBOT_NOTE_30) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36"); !strings.Contains(body, "SPOILERBODY") {
-		t.Error("a Cubot phone was treated as a crawler")
+	for _, model := range []string{"CUBOT_NOTE_30", "CUBOT NOTE 30", "CUBOT KINGKONG 9 Build/TP1A"} {
+		ua := "Mozilla/5.0 (Linux; Android 13; " + model + ") AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36"
+		if _, body := e.getUA("/p/"+p2.Slug, ua); !strings.Contains(body, "SPOILERBODY") {
+			t.Errorf("a %s phone was treated as a crawler", model)
+		}
+	}
+	if _, body := e.getUA("/p/"+p2.Slug, "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 [Pinterest/iOS]"); !strings.Contains(body, "SPOILERBODY") {
+		t.Error("Pinterest's in-app browser was treated as a crawler")
 	}
 }
 
@@ -141,5 +148,25 @@ func TestSignupWhenSignedInAndThrottleOnlyCountsRealAttempts(t *testing.T) {
 	}
 	if resp := e.post(e.client(), "/signup", url.Values{"username": {"cyd"}, "password": {testPassword}}); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("sign-up after typos = %d; validation errors must not use up the limit", resp.StatusCode)
+	}
+}
+
+func TestOverLongBodyIsHandedBackToTheAuthor(t *testing.T) {
+	e := newTestServer(t)
+	c := e.signIn("ana", false)
+	f := validForm()
+	f.Set("csrf", e.csrf(c))
+	f.Set("body", "<div>KEEPMYWORDS "+strings.Repeat("a", 110*1024)+"</div>")
+	req, _ := http.NewRequest("POST", e.srv.URL+"/new", strings.NewReader(f.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", e.srv.URL)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(body), "KEEPMYWORDS") {
+		t.Errorf("status %d; the editor came back without the author's text", resp.StatusCode)
 	}
 }

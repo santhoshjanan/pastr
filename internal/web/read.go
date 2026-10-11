@@ -46,9 +46,15 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	url := s.cfg.BaseURL + "/p/" + slug
 	// Link-preview fetchers get the title only, and are not readers.
-	if paste.IsPreviewCrawler(r.UserAgent()) || isPrefetch(r) {
-		s.render(w, r, http.StatusOK, "preview.html",
-			pageData{Title: v.Title, Colour: paste.SignalColour(slug), NoNav: true, NoScript: true, Data: readData{Paste: v, URL: url}})
+	preview := pageData{Title: v.Title, Colour: paste.SignalColour(slug), NoNav: true, NoScript: true, Data: readData{Paste: v, URL: url}}
+	if isPrefetch(r) {
+		// Refused, so the browser fetches the page afresh when the person really opens it
+		// instead of showing them a title-only copy.
+		s.render(w, r, http.StatusServiceUnavailable, "preview.html", preview)
+		return
+	}
+	if paste.IsPreviewCrawler(r.UserAgent()) {
+		s.render(w, r, http.StatusOK, "preview.html", preview)
 		return
 	}
 

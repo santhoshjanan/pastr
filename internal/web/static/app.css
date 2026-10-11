@@ -287,7 +287,6 @@ a.index__title::before {
   background: var(--signal);
   transform: scaleX(0.5);
   transform-origin: left;
-  transition: transform 0.2s var(--ease);
 }
 a.index__title:hover::before, a.index__title:focus-visible::before { transform: none; }
 
@@ -363,10 +362,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--ground);
   font-weight: 700;
   text-decoration: none;
-  transition: background-color 0.15s var(--ease);
 }
 .button:hover { background: var(--signal); }
-.button:active { transform: translateY(1px); }
 .button.is-copied { background: var(--signal); }
 
 .link {
@@ -427,11 +424,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--ink);
 }
 .compose trix-toolbar .trix-button:not(:first-child) { border-left: var(--rule) solid var(--ink); }
-.compose trix-toolbar .trix-button.trix-active { background: var(--signal); }
+/* Trix's icons are dark artwork, so they are inverted wherever the face behind them
+   is dark: on the active (ink-filled) button in light, on every other button in dark. */
+.compose trix-toolbar .trix-button.trix-active { background: var(--ink); }
 .compose trix-toolbar .trix-button--icon::before { opacity: 1; }
-/* Trix's icons are dark artwork; turned to light ink on the dark ground. */
+.compose trix-toolbar .trix-button.trix-active::before { filter: invert(1); }
 @media (prefers-color-scheme: dark) {
   .compose trix-toolbar .trix-button--icon::before { filter: invert(1); }
+  .compose trix-toolbar .trix-button.trix-active::before { filter: none; }
 }
 .compose trix-toolbar .trix-dialog {
   border: var(--rule) solid var(--ink);
@@ -525,6 +525,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 @media (prefers-reduced-motion: no-preference) {
   @view-transition { navigation: auto; }
+
+  .button { transition: background-color 0.15s var(--ease); }
+  .button:active { transform: translateY(1px); }
+  a.index__title::before { transition: transform 0.2s var(--ease); }
 
   .bar { transform-origin: left; animation: bar-draw 0.5s var(--ease) both; }
   .poster--gone .bar--strike { animation: bar-draw 0.5s var(--ease) both, bar-strike 0.45s var(--ease) 0.55s backwards; }

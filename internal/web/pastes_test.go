@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -89,6 +90,21 @@ func TestCreateRejectsBadInput(t *testing.T) {
 		resp, slug := e.create(c, f)
 		if resp.StatusCode != http.StatusUnprocessableEntity || slug != "" {
 			t.Errorf("%s: status %d, want 422", name, resp.StatusCode)
+		}
+	}
+	f := validForm()
+	f.Set("csrf", e.csrf(c))
+	f.Set("body", "<div><br></div>")
+	req, _ := http.NewRequest("POST", e.srv.URL+"/new", strings.NewReader(f.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", e.srv.URL)
+	if resp, err := c.Do(req); err != nil {
+		t.Fatal(err)
+	} else {
+		page, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(string(page), "Write something first.") {
+			t.Error("empty editor: the message does not say what to do")
 		}
 	}
 	if list, _ := e.store.ListPastesByUser(context.Background(), 1, *e.now); len(list) != 0 {

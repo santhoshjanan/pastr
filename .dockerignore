@@ -6,6 +6,6 @@ data
 docs
 *.db*
 .env
+.env.*
 .claude
 .superpowers
-bin

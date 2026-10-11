@@ -92,10 +92,14 @@ func TestSessionCookieFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	secure := false
 	for _, ck := range resp2.Cookies() {
-		if ck.Name == "pastr_session" && !ck.Secure {
-			t.Error("https base URL must produce a Secure cookie")
+		if ck.Name == "pastr_session" {
+			secure = ck.Secure
 		}
+	}
+	if !secure {
+		t.Error("https base URL must produce a Secure session cookie")
 	}
 }
 

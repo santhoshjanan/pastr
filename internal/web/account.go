@@ -27,7 +27,8 @@ func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	username := strings.ToLower(strings.TrimSpace(r.PostFormValue("username")))
 	password := r.PostFormValue("password")
-	userKey, ipKey := "u:"+username, "ip:"+s.clientIP(r)
+	ip := s.clientIP(r)
+	pairKey := username + "|" + ip
 
 	badLogin := func() {
 		s.render(w, r, http.StatusUnauthorized, "login.html", pageData{Title: "Sign in", Data: username, Error: msgBadLogin})
@@ -37,16 +38,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		badLogin()
 		return
 	}
-	// Both slots are reserved before the password is checked, so a burst of parallel
-	// guesses cannot outrun the limit. A successful sign-in hands them back.
-	okUser := s.logins.Attempt(userKey)
-	okIP := s.logins.Attempt(ipKey)
-	if !okUser || !okIP {
-		if okUser {
-			s.logins.Release(userKey)
+	// Slots are reserved before the password is checked, so a burst of parallel
+	// guesses cannot outrun the limits. A successful sign-in hands them back.
+	okPair := s.logins.Attempt(pairKey)
+	okIP := s.loginsIP.Attempt(ip)
+	okUser := s.loginsUser.Attempt(username)
+	if !okPair || !okIP || !okUser {
+		if okPair {
+			s.logins.Release(pairKey)
 		}
 		if okIP {
-			s.logins.Release(ipKey)
+			s.loginsIP.Release(ip)
+		}
+		if okUser {
+			s.loginsUser.Release(username)
 		}
 		s.render(w, r, http.StatusTooManyRequests, "login.html",
 			pageData{Title: "Sign in", Data: username, Error: "Too many tries. Wait a few minutes, then try again."})
@@ -67,8 +72,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		badLogin() // the reserved slots stay spent
 		return
 	}
-	s.logins.Reset(userKey)
-	s.logins.Release(ipKey)
+	s.logins.Reset(pairKey)
+	s.loginsIP.Release(ip)
+	s.loginsUser.Release(username)
 	s.startSession(w, r, u.ID, "/?e=login")
 }
 

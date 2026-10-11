@@ -26,10 +26,15 @@ var templateFS embed.FS
 var staticFS embed.FS
 
 type Server struct {
-	cfg        config.Config
-	store      *store.Store
-	sessions   auth.Sessions
+	cfg      config.Config
+	store    *store.Store
+	sessions auth.Sessions
+	// Sign-in is limited three ways: tightly per username-and-address pair, so a
+	// stranger's guesses cannot lock the real owner out; per address, against
+	// spraying many usernames; and loosely per username, against many addresses.
 	logins     *auth.Throttle
+	loginsIP   *auth.Throttle
+	loginsUser *auth.Throttle
 	signups    *auth.Throttle
 	log        *slog.Logger
 	now        func() time.Time
@@ -66,6 +71,8 @@ func (s *Server) SetClock(now func() time.Time) {
 	s.now = now
 	s.sessions = auth.Sessions{Store: s.store, Now: now}
 	s.logins = auth.NewThrottle(5, 15*time.Minute, now)
+	s.loginsIP = auth.NewThrottle(20, 15*time.Minute, now)
+	s.loginsUser = auth.NewThrottle(100, 15*time.Minute, now)
 	s.signups = auth.NewThrottle(5, time.Hour, now)
 }
 
@@ -82,8 +89,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /account", s.requireUser(s.handleAccountForm))
 	mux.HandleFunc("POST /account", s.requireUser(s.handleAccount))
 
-	s.pasteRoutes(mux) // Tasks 8 and 9
-	s.adminRoutes(mux) // Task 10
+	s.pasteRoutes(mux)
+	s.adminRoutes(mux)
 
 	mux.HandleFunc("/", s.gone)
 	return s.recoverer(s.securityHeaders(s.limitBody(s.loadSession(s.protect(mux)))))

@@ -1,7 +1,7 @@
 # pastr design
 
 Date: 2026-10-11
-Status: approved in conversation, awaiting written-spec review
+Status: approved and built. Section 16 lists where the build differs from the text below.
 
 ## 1. Purpose
 
@@ -311,3 +311,20 @@ Octopus code review and security audit at three checkpoints:
 Impeccable governs UI work: the direction contract is recorded before UI code, and the build ends with its finish review and a written `DESIGN.md`.
 
 Creating the GitHub repository and pushing are done only with the owner's explicit go-ahead.
+
+## 16. Changes made during the build
+
+The reviews in section 15 led to these differences from the text above. Where they conflict, this section is what the code does.
+
+- **Counting a view (section 5):** one transaction counts the view, re-checks expiry, limit and owner, and deletes a paste that has just used its last view. The hourly sweep also removes pastes that are at their limit.
+- **Automated fetchers (section 5):** besides known preview crawlers, requests with no user agent, HTTP libraries and anything naming itself a bot get the title only and are not counted. Browser prefetches are refused, so the real visit fetches the page afresh.
+- **Sign-in limits (section 7):** 5 tries per username from one address, 20 per address and 100 per username in 15 minutes, so a stranger's guesses cannot lock an owner out. IPv6 addresses are grouped by /64.
+- **Passwords (sections 5 and 7):** changing or resetting a password ends the user's other sessions.
+- **Trusted proxy (sections 7 and 10):** `PASTR_TRUSTED_PROXY` accepts an IP address or a CIDR range; the last `X-Forwarded-For` entry is used.
+- **View limit on edit (section 5):** a limit at or below the views already used is refused.
+- **Editor pages (section 7):** the create and edit pages add a per-response style nonce to the Content Security Policy for the styles Trix injects. No other page does.
+- **Body size (section 7):** the 100 KB limit applies to the sanitised body as stored. The request cap is 512 KB, because a 100 KB body can triple when form-encoded.
+- **Editor toolbar (section 8):** the nesting buttons are removed along with attachments and code blocks.
+- **Motion (section 8):** the title rises as one block, not line by line. The reveal uses `visibility` and the title `clip-path` in addition to transform and opacity.
+- **Navigation (section 8):** labels are "Pastes" and "New" so the bar fits one row on a phone.
+- **Linting (section 13):** staticcheck runs from a pinned main-branch build until a release supports the Go version in use.

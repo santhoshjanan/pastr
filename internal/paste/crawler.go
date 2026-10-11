@@ -10,16 +10,18 @@ import (
 // shown the title only and never count as a view, so they cannot hold a spoiler or
 // burn a view-limited paste before a person opens it.
 var crawlerMarkers = []string{
+	"twitterbot", "slackbot", "discordbot", "telegrambot", "linkedinbot", "redditbot", "facebot",
+	"googlebot", "bingbot", "duckduckbot", "applebot", "pinterestbot", "pinterest/0.",
 	"facebookexternalhit", "whatsapp", "mastodon", "pleroma", "bluesky", "skypeuripreview", "viber",
-	"pinterest", "embedly", "iframely", "yandex.com/bots", "inspectiontool", "headlesschrome",
+	"embedly", "iframely", "yandex.com/bots", "inspectiontool", "headlesschrome",
 	"crawler", "spider", "preview", "scanner", "fetcher", "unfurl",
 	"curl/", "wget/", "go-http-client", "python-requests", "python-urllib", "aiohttp", "httpx",
 	"okhttp", "java/", "node-fetch", "axios/", "libwww", "guzzlehttp",
 }
 
-// "bot" as a word ending: Twitterbot/1.0, "(bot; ...)", "Slackbot-LinkExpanding".
-// A phone model such as CUBOT_NOTE does not match.
-var botWord = regexp.MustCompile(`bot([/;),\s-]|$)`)
+// "bot" closing a product token: "SomeBot/1.0", "(bot; ...)", "Somebot-Fetch".
+// A space is not enough, or phones such as "CUBOT NOTE 30" would be turned away.
+var botWord = regexp.MustCompile(`bot([/;)-]|$)`)
 
 // IsPreviewCrawler reports whether a request's user agent belongs to an automated
 // fetcher. A missing user agent counts: every browser sends one.

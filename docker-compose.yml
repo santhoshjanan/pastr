@@ -3,6 +3,7 @@ services:
     build: .
     image: pastr:latest
     restart: unless-stopped
+    stop_grace_period: 25s # pastr drains open requests for up to 20s
     env_file: .env
     ports:
       - "127.0.0.1:8080:8080"

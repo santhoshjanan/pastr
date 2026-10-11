@@ -23,7 +23,7 @@ docker compose up -d
 
 Sign in at your base URL. The admin variables are only read while no users exist, so you can remove them from `.env` afterwards.
 
-Sign-ups are closed by default. The admin page has a switch to open them.
+Sign-ups are closed by default. The admin page has a switch to open them; people then register at `/signup`.
 
 ## Configuration
 
@@ -46,7 +46,7 @@ paste.example.com {
 }
 ```
 
-Set `PASTR_TRUSTED_PROXY` to the address (or Docker network range) the proxy connects from. pastr then reads the visitor's address from `X-Forwarded-For` for sign-in throttling. Without it, everyone behind the proxy shares one throttle, so five wrong passwords from anyone lock sign-in for all for 15 minutes.
+Set `PASTR_TRUSTED_PROXY` to the address (or Docker network range) the proxy connects from. pastr then reads the visitor's address from the last entry of `X-Forwarded-For` for sign-in throttling. The proxy must set or append that header itself, as Caddy, nginx (`proxy_add_x_forwarded_for`) and Traefik do; a proxy that passes a client's header through untouched would let visitors forge their address. Without it, everyone behind the proxy counts as one address and shares its sign-in limit.
 
 Use an `https://` base URL in production: session cookies are marked `Secure` only then.
 
@@ -74,13 +74,19 @@ This relies on the visitor's user agent. A scanner that presents itself as an or
 
 ## Backups
 
-Everything lives in the SQLite file on the `pastr-data` volume. For a consistent copy while pastr is running, use SQLite's own backup from the host:
+Everything lives in one SQLite file, `pastr.db`, on the `pastr-data` volume. Find where Docker keeps it:
+
+```bash
+docker volume inspect --format '{{ .Mountpoint }}' pastr_pastr-data
+```
+
+For a consistent copy while pastr is running, use SQLite's own backup on that file:
 
 ```bash
 sqlite3 /path/to/pastr.db "VACUUM INTO '/path/to/backup.db'"
 ```
 
-Or stop the container and copy the volume.
+Or stop the container and copy the volume. If you would rather have the file in a folder you choose, replace the named volume in `docker-compose.yml` with a bind mount.
 
 ## Privacy and security
 
@@ -88,6 +94,8 @@ Or stop the container and copy the volume.
 - Paste text is reduced to a small set of formatting tags when saved. A strict Content Security Policy allows no inline scripts anywhere.
 - Expired, used-up, deleted and unknown links all return the same page, so a link reveals nothing about what was there.
 - There is no email, so there is no self-service password reset. The admin sets a new password for a user from the admin page.
+
+Sign-in is limited to 5 tries per username from one address, 20 per address and 100 per username in 15 minutes.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
@@ -103,7 +111,7 @@ make test
 make run
 ```
 
-`make run` serves http://localhost:8080 with a database in `./data` and the account `admin` / `change-me-please`. `make lint` runs the format check, `go vet`, staticcheck and govulncheck. `make docker` builds the image.
+`make run` serves http://localhost:8080 (this machine only) with a database in `./data` and the account `admin` / `change-me-please`. `make lint` runs the format check, `go vet`, staticcheck and govulncheck. `make docker` builds the image.
 
 The design spec and implementation plan are in [docs/superpowers](docs/superpowers), the product record in [PRODUCT.md](PRODUCT.md) and the visual system in [DESIGN.md](DESIGN.md).
 

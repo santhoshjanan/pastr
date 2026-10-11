@@ -112,12 +112,14 @@ func (s *Server) handleNewForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) readForm(r *http.Request, p *store.Paste, editing bool) (formData, error) {
 	fd := formData{Editing: editing, Slug: p.Slug, Title: r.PostFormValue("title"), Reveal: r.PostFormValue("reveal"),
 		Expiry: r.PostFormValue("expiry"), MaxViews: r.PostFormValue("max_views")}
+	// Sanitised before any check fails, so the author always gets their text back
+	// in the editor. The request size cap bounds the work.
 	raw := r.PostFormValue("body")
+	body := sanitize.HTML(raw)
+	fd.Body = body
 	if len(raw) > paste.MaxBodyBytes {
 		return fd, errors.New("That's too long. Keep it under 100 KB.")
 	}
-	body := sanitize.HTML(raw)
-	fd.Body = body
 	if len(body) > paste.MaxBodyBytes { // links gain attributes when sanitised
 		return fd, errors.New("That's too long. Keep it under 100 KB.")
 	}

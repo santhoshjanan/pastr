@@ -152,6 +152,16 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+// throttleKey groups an address for rate limiting. One IPv6 customer usually holds
+// a whole /64, so those addresses share a key.
+func throttleKey(a netip.Addr) string {
+	a = a.Unmap()
+	if a.Is6() {
+		return netip.PrefixFrom(a, 64).Masked().Addr().String()
+	}
+	return a.String()
+}
+
 // clientIP is used only as an in-memory throttle key. The forwarded header is
 // believed only when the request arrives from the configured proxy.
 func (s *Server) clientIP(r *http.Request) string {
@@ -165,10 +175,10 @@ func (s *Server) clientIP(r *http.Request) string {
 		// header line is the only one a client cannot forge.
 		parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 		if client, err := netip.ParseAddr(strings.TrimSpace(parts[len(parts)-1])); err == nil {
-			return client.Unmap().String()
+			return throttleKey(client)
 		}
 	}
-	return peer.String()
+	return throttleKey(peer)
 }
 
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
