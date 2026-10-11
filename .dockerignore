@@ -1,0 +1,11 @@
+.git
+.github
+.impeccable
+bin
+data
+docs
+*.db*
+.env
+.claude
+.superpowers
+bin

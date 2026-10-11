@@ -120,8 +120,9 @@ func TestThrottle(t *testing.T) {
 		th.Attempt("k")
 	}
 	th.Release("k") // a success hands its slot back
-	if !th.Attempt("k") || !th.Attempt("k") || th.Attempt("k") {
-		t.Error("Release should free exactly one slot")
+	first, second, third := th.Attempt("k"), th.Attempt("k"), th.Attempt("k")
+	if !first || !second || third {
+		t.Errorf("after Release, attempts = %v %v %v; want exactly two more slots", first, second, third)
 	}
 }
 

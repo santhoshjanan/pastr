@@ -1,3 +1,6 @@
+# The main branch of staticcheck, until a release can read this Go version's packages.
+STATICCHECK ?= master
+
 .PHONY: test race lint run build docker
 
 test:
@@ -9,7 +12,7 @@ race:
 lint:
 	test -z "$$(gofmt -l .)"
 	go vet ./...
-	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK) ./...
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 build:
