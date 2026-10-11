@@ -1,0 +1,18 @@
+# Local data and secrets
+.env
+*.db
+*.db-shm
+*.db-wal
+/data/
+
+# Build output
+/bin/
+/dist/
+
+# Tooling working files
+.impeccable/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
