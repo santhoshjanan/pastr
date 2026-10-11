@@ -14,8 +14,8 @@
 <body class="signal-{{.Colour}}"{{if .Track}} data-track="{{.Track}}" data-track-props="{{.TrackProps}}"{{end}}>
 {{if and .User (not .NoNav)}}
 <nav class="nav" aria-label="Main">
-  <a href="/">My pastes</a>
-  <a href="/new">New paste</a>
+  <a href="/">Pastes</a>
+  <a href="/new">New</a>
   <a href="/account">Account</a>
   {{if .User.IsAdmin}}<a href="/admin">Admin</a>{{end}}
   <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">Sign out</button></form>

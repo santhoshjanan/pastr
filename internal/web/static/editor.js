@@ -7,7 +7,9 @@
     var toolbar = e.target.toolbarElement;
     if (!toolbar) return;
     // Remove the code-block button and the attach-files group.
-    [".trix-button--icon-code", ".trix-button-group--file-tools"].forEach(function (sel) {
+    // Also the nesting buttons: prose here is one level deep.
+    [".trix-button--icon-code", ".trix-button-group--file-tools",
+     ".trix-button--icon-decrease-nesting-level", ".trix-button--icon-increase-nesting-level"].forEach(function (sel) {
       var el = toolbar.querySelector(sel);
       if (el) el.remove();
     });

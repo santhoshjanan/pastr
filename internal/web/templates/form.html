@@ -11,9 +11,9 @@
   <form method="post" action="{{if .Data.Editing}}/p/{{.Data.Slug}}/edit{{else}}/new{{end}}" class="form">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label class="field field--title"><span class="visually-hidden">Title</span>
-      <textarea name="title" class="poster__title" rows="2" maxlength="120" required placeholder="Title">{{.Data.Title}}</textarea>
-      <small>Shown in the link preview. Keep it spoiler-free.</small></label>
+      <textarea name="title" class="poster__title" rows="2" maxlength="120" required placeholder="Title" aria-describedby="title-hint">{{.Data.Title}}</textarea></label>
     <div class="bar" aria-hidden="true"></div>
+    <p class="hint" id="title-hint">The title is shown in the link preview. Keep it spoiler-free.</p>
 
     <input type="hidden" id="body" name="body" value="{{.Data.Body}}">
     <trix-toolbar id="toolbar"></trix-toolbar>

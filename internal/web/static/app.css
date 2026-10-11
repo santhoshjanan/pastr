@@ -16,7 +16,7 @@
   --step-0: 1.125rem;
   --step-1: 1.5rem;
   --step-2: 2.25rem;
-  --step-3: clamp(2.5rem, 9vw, 4.5rem);
+  --step-3: clamp(2.5rem, 9vw, 6rem);
   --unit: 0.5rem;
   --rule: 2px;
   --bar: calc(var(--unit) * 1.5);
@@ -50,6 +50,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  scrollbar-color: var(--ink) var(--ground);
 }
 
 body {
@@ -88,7 +89,34 @@ a { color: inherit; }
 
 /* The poster: headline, bar, meta */
 
-.poster, .index, .compose { max-width: 46rem; }
+.poster, .compose { max-width: 46rem; }
+.index { max-width: 60rem; }
+
+/* On a wide sheet the read page uses the whole grid: headline and bar across,
+   then the facts in a narrow column beside the text. */
+.poster--read, .poster--gone { max-width: 72rem; }
+@media (min-width: 64rem) {
+  .poster--read {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, var(--measure));
+    column-gap: 4rem;
+  }
+  .poster--read .poster__head { display: contents; }
+  .poster--read .poster__title, .poster--read .bar { grid-column: 1 / -1; }
+  .poster--read .poster__meta {
+    grid-column: 1;
+    flex-direction: column;
+    align-self: start;
+    gap: calc(var(--unit) * 0.75);
+    margin-top: calc(var(--unit) * 6);
+    padding-top: var(--unit);
+    border-top: var(--rule) solid var(--ink);
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .poster--read > .prose, .poster--read > .reveal { grid-column: 2; }
+  .poster--read > .reveal > .reveal__control { max-width: 24rem; }
+}
 
 .poster__title {
   font-size: var(--step-3);
@@ -197,7 +225,7 @@ a { color: inherit; }
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 calc(var(--unit) * 3);
+  gap: 0 clamp(0.9rem, 4vw, 1.5rem);
   padding: calc(var(--unit) * 1.5) var(--gutter);
   border-bottom: var(--rule) solid var(--ink);
   font-size: var(--step--1);
@@ -304,7 +332,19 @@ input:not([type="radio"], [type="hidden"]), textarea {
   appearance: none;
 }
 input::placeholder, textarea::placeholder { color: var(--ink-soft); opacity: 1; }
-input[type="radio"] { width: 1.15rem; height: 1.15rem; margin: 0; accent-color: var(--ink); }
+/* Square, ink-drawn radios: the form has no curves. */
+input[type="radio"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  border: var(--rule) solid var(--ink);
+  border-radius: 0;
+  background: var(--ground);
+  appearance: none;
+}
+input[type="radio"]:checked { background: var(--ink); box-shadow: inset 0 0 0 3px var(--ground); }
+.choice label:has(:checked) { font-weight: 700; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
 
@@ -346,8 +386,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border: var(--rule) solid var(--ink);
   font-size: var(--step--1);
 }
-.form-error::before { content: "Not yet. "; font-weight: 700; }
-.form-error { background: var(--ink); color: var(--ground); }
+.form-error { background: var(--ink); color: var(--ground); font-weight: 700; }
 .form-notice::before { content: "Done. "; font-weight: 700; }
 
 /* Compose */
@@ -358,36 +397,40 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .field--title textarea.poster__title {
   min-height: 0;
-  padding: 0 0 calc(var(--unit) * 1);
+  padding: 0;
   border: 0;
-  border-bottom: var(--rule) dashed var(--ink-soft);
+  overflow: hidden;
   resize: none;
   field-sizing: content;
   font-family: var(--font);
 }
 .field--title textarea.poster__title:focus-visible { outline-offset: 6px; }
 .compose .bar { margin-top: 0; }
+.hint { color: var(--ink-soft); font-size: var(--step--1); margin-top: calc(var(--unit) * -1.5); }
 
 .compose trix-toolbar { margin-top: calc(var(--unit) * 2); }
-.compose trix-toolbar .trix-button-row { flex-wrap: wrap; gap: var(--unit); }
+.compose trix-toolbar .trix-button-row { flex-wrap: wrap; justify-content: flex-start; gap: var(--unit); }
 .compose trix-toolbar .trix-button-group {
   margin: 0;
   border: var(--rule) solid var(--ink);
   border-radius: 0;
 }
 .compose trix-toolbar .trix-button-group-spacer { display: none; }
-/* Trix's icons are dark artwork, so the buttons keep a light face in both themes. */
 .compose trix-toolbar .trix-button {
-  min-width: 2.75rem;
+  min-width: clamp(2.3rem, 10vw, 2.75rem);
   min-height: 2.75rem;
   border: 0;
   border-radius: 0;
-  background: #ffffff;
-  color: #111111;
+  background: var(--ground);
+  color: var(--ink);
 }
-.compose trix-toolbar .trix-button:not(:first-child) { border-left: 1px solid #111111; }
-.compose trix-toolbar .trix-button.trix-active { background: #d6d6d6; }
-.compose trix-toolbar .trix-button--icon::before { opacity: 0.85; }
+.compose trix-toolbar .trix-button:not(:first-child) { border-left: var(--rule) solid var(--ink); }
+.compose trix-toolbar .trix-button.trix-active { background: var(--signal); }
+.compose trix-toolbar .trix-button--icon::before { opacity: 1; }
+/* Trix's icons are dark artwork; turned to light ink on the dark ground. */
+@media (prefers-color-scheme: dark) {
+  .compose trix-toolbar .trix-button--icon::before { filter: invert(1); }
+}
 .compose trix-toolbar .trix-dialog {
   border: var(--rule) solid var(--ink);
   border-radius: 0;
@@ -398,7 +441,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .compose trix-toolbar .trix-dialog .trix-button { border: var(--rule) solid var(--ink); padding: 0 0.75rem; }
 
 .compose trix-editor.prose {
-  max-width: none;
+  /* The reader's measure, so the author sees the reader's line breaks. */
+  max-width: calc(var(--measure) + 2.2rem + 2 * var(--rule));
   min-height: 16rem;
   margin-top: 0;
   padding: 1rem 1.1rem;
