@@ -134,5 +134,3 @@ func (s *Server) pasteRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /p/{slug}/edit", s.requireOwner(s.handleEdit))
 	mux.HandleFunc("POST /p/{slug}/delete", s.requireOwner(s.handleDelete))
 }
-
-func (s *Server) adminRoutes(mux *http.ServeMux) {}

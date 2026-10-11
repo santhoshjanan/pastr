@@ -1,0 +1,46 @@
+{{define "main"}}
+<section class="index">
+  <header class="index__head">
+    <h1 class="poster__title">Admin</h1>
+    <div class="bar" aria-hidden="true"></div>
+  </header>
+  {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+  {{if .Notice}}<p class="form-notice" role="status">{{.Notice}}</p>{{end}}
+
+  <form method="post" action="/admin" class="form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="action" value="signups">
+    <h2>Sign-ups</h2>
+    {{if .Data.SignupsOn}}
+    <p>Open. Anyone with the address can create an account.</p>
+    <input type="hidden" name="on" value="false"><button class="button">Close sign-ups</button>
+    {{else}}
+    <p>Closed. Only existing accounts can sign in.</p>
+    <input type="hidden" name="on" value="true"><button class="button">Open sign-ups</button>
+    {{end}}
+  </form>
+
+  <h2>People</h2>
+  <ul class="index__list">
+    {{range .Data.Users}}
+    <li class="index__row">
+      <span class="index__title">{{.Username}}</span>
+      <span class="index__meta">{{if .IsAdmin}}admin · {{end}}{{if .Disabled}}disabled{{else}}active{{end}} · joined {{.CreatedAt.Format "2 Jan 2006"}}</span>
+      <span class="index__actions">
+        <form method="post" action="/admin">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="user" value="{{.ID}}">
+          {{if .Disabled}}<button class="link" name="action" value="enable">Enable</button>
+          {{else}}<button class="link link--danger" name="action" value="disable">Disable</button>{{end}}
+        </form>
+        <form method="post" action="/admin" class="inline-reset">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="user" value="{{.ID}}">
+          <label><span class="visually-hidden">New password for {{.Username}}</span>
+            <input name="password" type="password" autocomplete="new-password" minlength="10" placeholder="New password" required></label>
+          <button class="link" name="action" value="reset">Set password</button>
+        </form>
+      </span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
