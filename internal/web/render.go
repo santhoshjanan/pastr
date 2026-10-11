@@ -19,6 +19,10 @@ type pageData struct {
 	Track      string // Umami event to fire when the page loads
 	TrackProps string // JSON object of event properties
 	Data       any
+	// An empty {{define}} cannot override a block in html/template, so pages that
+	// must drop the navigation or our script say so here instead.
+	NoNav    bool
+	NoScript bool
 
 	User        *store.User
 	CSRF        string
@@ -28,6 +32,7 @@ type pageData struct {
 
 var pageNames = []string{
 	"gone.html", "error.html", "login.html", "signup.html", "account.html",
+	"read.html", "preview.html",
 }
 
 func loadPages(s *Server) (map[string]*template.Template, error) {
@@ -67,7 +72,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page
 // gone is the one response for anything a visitor may not see or that does not exist.
 func (s *Server) gone(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
-	s.render(w, r, http.StatusNotFound, "gone.html", pageData{Title: "This one's gone", Track: "gone"})
+	s.render(w, r, http.StatusNotFound, "gone.html", pageData{Title: "This one's gone", Track: "gone", NoNav: true})
 }
 
 // fail maps a store or internal error to a response without leaking detail.
@@ -78,5 +83,5 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	id, _ := r.Context().Value(keyRequestID).(string)
 	s.log.Error("request failed", "request_id", id, "path", r.URL.Path, "err", err)
-	s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke"})
+	s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke", NoNav: true, NoScript: true})
 }

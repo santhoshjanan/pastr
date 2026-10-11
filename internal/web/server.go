@@ -125,6 +125,9 @@ func hashFS(fsys fs.FS) (string, error) {
 }
 
 func (s *Server) pasteRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /p/{slug}", s.handleRead)
+	// Replaced by the real list in Task 9.
 	mux.HandleFunc("GET /{$}", s.requireUser(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("signed in")) }))
 }
+
 func (s *Server) adminRoutes(mux *http.ServeMux) {}

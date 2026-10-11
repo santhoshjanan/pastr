@@ -45,7 +45,7 @@ func (s *Server) recoverer(next http.Handler) http.Handler {
 		defer func() {
 			if v := recover(); v != nil {
 				s.log.Error("panic", "request_id", id, "path", r.URL.Path, "panic", v)
-				s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke"})
+				s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke", NoNav: true, NoScript: true})
 			}
 		}()
 		next.ServeHTTP(w, r)

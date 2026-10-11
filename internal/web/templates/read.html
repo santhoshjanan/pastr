@@ -1,0 +1,29 @@
+{{define "head"}}
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{.Data.Paste.Title}}">
+<meta property="og:description" content="Open to read. Spoilers stay behind the link.">
+<meta property="og:url" content="{{.Data.URL}}">
+<meta name="twitter:card" content="summary">
+{{end}}
+{{define "main"}}
+<article class="poster poster--read">
+  <header class="poster__head">
+    <h1 class="poster__title">{{.Data.Paste.Title}}</h1>
+    <div class="bar" aria-hidden="true"></div>
+    <p class="poster__meta">
+      {{if .Data.Paste.AuthorName}}<span class="poster__byline">{{if .Data.Paste.AuthorLink}}<a href="{{.Data.Paste.AuthorLink}}" rel="noopener noreferrer nofollow">{{.Data.Paste.AuthorName}}</a>{{else}}{{.Data.Paste.AuthorName}}{{end}}</span>{{end}}
+      <time datetime="{{.Data.Paste.CreatedAt.Format "2006-01-02"}}">{{.Data.Date}}</time>
+      {{if .Data.TimeLeft}}<span>{{.Data.TimeLeft}}</span>{{end}}
+    </p>
+  </header>
+  {{if .Data.Gated}}
+  <details class="reveal">
+    <summary class="reveal__control" data-umami-event="reveal" data-umami-event-slug="{{.Data.Paste.Slug}}">Show the text</summary>
+    <div class="prose">{{.Data.Body}}</div>
+  </details>
+  {{else}}
+  <div class="prose">{{.Data.Body}}</div>
+  {{end}}
+</article>
+{{end}}

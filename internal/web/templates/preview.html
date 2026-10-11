@@ -1,0 +1,11 @@
+{{define "head"}}
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{.Data.Paste.Title}}">
+<meta property="og:description" content="Open to read. Spoilers stay behind the link.">
+<meta property="og:url" content="{{.Data.URL}}">
+<meta name="twitter:card" content="summary">
+{{end}}
+{{define "main"}}
+<article class="poster"><h1 class="poster__title">{{.Data.Paste.Title}}</h1></article>
+{{end}}
