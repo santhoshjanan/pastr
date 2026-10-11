@@ -1,0 +1,27 @@
+{{define "base"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{.Title}}</title>
+{{block "head" .}}<meta name="robots" content="noindex, nofollow">{{end}}
+<link rel="stylesheet" href="{{asset "app.css"}}">
+{{if .UmamiScript}}<script defer src="{{.UmamiScript}}" data-website-id="{{.UmamiID}}"></script>{{end}}
+{{block "scripts" .}}<script defer src="{{asset "events.js"}}"></script>{{end}}
+</head>
+<body class="signal-{{.Colour}}"{{if .Track}} data-track="{{.Track}}" data-track-props="{{.TrackProps}}"{{end}}>
+{{block "nav" .}}{{if .User}}
+<nav class="nav" aria-label="Main">
+  <a href="/">My pastes</a>
+  <a href="/new">New paste</a>
+  <a href="/account">Account</a>
+  {{if .User.IsAdmin}}<a href="/admin">Admin</a>{{end}}
+  <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="link">Sign out</button></form>
+</nav>
+{{end}}{{end}}
+<main>
+{{block "main" .}}{{end}}
+</main>
+</body>
+</html>{{end}}

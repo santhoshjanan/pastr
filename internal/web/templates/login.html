@@ -1,0 +1,15 @@
+{{define "main"}}
+<section class="poster poster--form">
+  <h1 class="poster__title">Sign in</h1>
+  <div class="bar" aria-hidden="true"></div>
+  {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/login" class="form">
+    <label class="field"><span>Username</span>
+      <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required value="{{.Data}}"></label>
+    <label class="field"><span>Password</span>
+      <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="button">Sign in</button>
+  </form>
+  <div class="living-poster" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+</section>
+{{end}}

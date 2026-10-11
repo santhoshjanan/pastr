@@ -1,0 +1,29 @@
+{{define "main"}}
+<section class="poster poster--form">
+  <h1 class="poster__title">Account</h1>
+  <div class="bar" aria-hidden="true"></div>
+  {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+  {{if .Notice}}<p class="form-notice" role="status">{{.Notice}}</p>{{end}}
+  <form method="post" action="/account" class="form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="action" value="profile">
+    <h2>Byline</h2>
+    <p>Shown under your pastes. Leave both blank to stay unnamed.</p>
+    <label class="field"><span>Display name</span>
+      <input name="display_name" maxlength="60" value="{{.User.DisplayName}}"></label>
+    <label class="field"><span>Link</span>
+      <input name="display_link" type="url" placeholder="https://" value="{{.User.DisplayLink}}"></label>
+    <button class="button">Save byline</button>
+  </form>
+  <form method="post" action="/account" class="form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="action" value="password">
+    <h2>Password</h2>
+    <label class="field"><span>Current password</span>
+      <input name="current" type="password" autocomplete="current-password" required></label>
+    <label class="field"><span>New password</span>
+      <input name="new" type="password" autocomplete="new-password" required minlength="10"></label>
+    <button class="button">Change password</button>
+  </form>
+</section>
+{{end}}

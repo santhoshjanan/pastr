@@ -1,0 +1,17 @@
+{{define "main"}}
+<section class="poster poster--form">
+  <h1 class="poster__title">Create an account</h1>
+  <div class="bar" aria-hidden="true"></div>
+  {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/signup" class="form">
+    <label class="field"><span>Username</span>
+      <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="32" value="{{.Data}}">
+      <small>3 to 32 characters: letters, numbers, dashes, underscores.</small></label>
+    <label class="field"><span>Password</span>
+      <input name="password" type="password" autocomplete="new-password" required minlength="10">
+      <small>At least 10 characters.</small></label>
+    <button class="button">Create account</button>
+  </form>
+  <div class="living-poster" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+</section>
+{{end}}
