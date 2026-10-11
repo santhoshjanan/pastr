@@ -16,3 +16,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+# Plan execution scratch
+.superpowers/
