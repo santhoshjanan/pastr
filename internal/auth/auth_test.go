@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -98,24 +101,79 @@ func TestThrottle(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	th := NewThrottle(5, 15*time.Minute, func() time.Time { return now })
 	for i := 0; i < 5; i++ {
-		if !th.Allowed("k") {
-			t.Fatalf("blocked after %d failures", i)
+		if !th.Attempt("k") {
+			t.Fatalf("blocked on attempt %d", i+1)
 		}
-		th.Fail("k")
 	}
-	if th.Allowed("k") {
-		t.Error("still allowed after 5 failures")
+	if th.Attempt("k") {
+		t.Error("6th attempt allowed")
 	}
-	if !th.Allowed("other") {
+	if !th.Attempt("other") {
 		t.Error("unrelated key blocked")
 	}
 	now = now.Add(16 * time.Minute)
-	if !th.Allowed("k") {
+	if !th.Attempt("k") {
 		t.Error("still blocked after the window passed")
 	}
-	th.Fail("k")
 	th.Reset("k")
-	if !th.Allowed("k") {
-		t.Error("Reset did not clear failures")
+	for i := 0; i < 4; i++ {
+		th.Attempt("k")
+	}
+	th.Release("k") // a success hands its slot back
+	if !th.Attempt("k") || !th.Attempt("k") || th.Attempt("k") {
+		t.Error("Release should free exactly one slot")
+	}
+}
+
+func TestThrottleIsAtomicUnderConcurrency(t *testing.T) {
+	th := NewThrottle(5, time.Minute, time.Now)
+	var granted atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if th.Attempt("k") {
+				granted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if granted.Load() != 5 {
+		t.Errorf("%d parallel attempts allowed, want 5", granted.Load())
+	}
+}
+
+func TestThrottleMemoryIsBounded(t *testing.T) {
+	th := NewThrottle(5, time.Hour, time.Now)
+	for i := 0; i < maxThrottleKeys*2; i++ {
+		th.Attempt("flood-" + strconv.Itoa(i))
+	}
+	if n := len(th.attempts); n > maxThrottleKeys {
+		t.Errorf("throttle holds %d keys, cap is %d", n, maxThrottleKeys)
+	}
+}
+
+func TestWeakOrBrokenStoredHashesAreRejected(t *testing.T) {
+	salt, key := "c29tZXNhbHRzb21lc2FsdA", "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE"
+	for _, h := range []string{
+		"$argon2id$v=19$m=65536,t=0,p=2$" + salt + "$" + key, // t=0 would panic inside argon2
+		"$argon2id$v=19$m=8,t=1,p=1$" + salt + "$" + key,     // far below a safe cost
+		"$argon2id$v=19$m=65536,t=3,p=2$$" + key,             // empty salt
+		"$argon2id$v=19$m=65536,t=3,p=2$" + salt + "$MA",     // 1-byte key
+	} {
+		if VerifyPassword(h, "anything") {
+			t.Errorf("accepted %s", h)
+		}
+	}
+	h, _ := HashPassword("correct horse battery")
+	if VerifyPassword(h, strings.Repeat("a", 5000)) {
+		t.Error("over-long password verified")
+	}
+}
+
+func TestPasswordLengthCountsCharacters(t *testing.T) {
+	if err := ValidatePassword("🎬🎬🎬🎬"); err == nil {
+		t.Error("4 emoji (16 bytes) accepted as a 10-character password")
 	}
 }

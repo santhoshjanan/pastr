@@ -217,3 +217,21 @@ func TestUnknownRouteIsGone(t *testing.T) {
 		t.Errorf("unknown route = %d", resp.StatusCode)
 	}
 }
+
+func TestPasswordChangeKeepsThisDeviceAndEndsOthers(t *testing.T) {
+	e := newTestServer(t)
+	here := e.signIn("ana", false)
+	elsewhere := e.client()
+	e.post(elsewhere, "/login", url.Values{"username": {"ana"}, "password": {testPassword}})
+
+	resp := e.post(here, "/account", url.Values{"csrf": {e.csrf(here)}, "action": {"password"}, "current": {testPassword}, "new": {"another good one"}})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("password change = %d", resp.StatusCode)
+	}
+	if resp, _ := e.get(here, "/account"); resp.StatusCode != http.StatusOK {
+		t.Errorf("the device that changed the password was signed out: %d", resp.StatusCode)
+	}
+	if resp, _ := e.get(elsewhere, "/account"); resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("another device stayed signed in after the password change: %d", resp.StatusCode)
+	}
+}

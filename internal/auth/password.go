@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -22,7 +23,22 @@ const (
 
 	MinPasswordLen = 10
 	maxPasswordLen = 1024
+
+	// Floors for parameters read back from a stored hash.
+	minArgonMemory = 19 * 1024
+	minSaltLen     = 8
+	minKeyLen      = 16
 )
+
+// Each hash uses 64 MiB, so the number running at once is capped to keep a burst
+// of sign-ins from exhausting memory.
+var argonSlots = make(chan struct{}, 4)
+
+func deriveKey(pw string, salt []byte, time, memory uint32, threads uint8, keyLen uint32) []byte {
+	argonSlots <- struct{}{}
+	defer func() { <-argonSlots }()
+	return argon2.IDKey([]byte(pw), salt, time, memory, threads, keyLen)
+}
 
 var usernameRE = regexp.MustCompile(`^[a-z0-9_-]{3,32}$`)
 
@@ -31,12 +47,15 @@ func HashPassword(pw string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(pw), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key := deriveKey(pw, salt, argonTime, argonMemory, argonThreads, argonKeyLen)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, argonMemory, argonTime, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
 
 func VerifyPassword(encoded, pw string) bool {
+	if len(pw) > maxPasswordLen {
+		return false
+	}
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {
 		return false
@@ -50,30 +69,34 @@ func VerifyPassword(encoded, pw string) bool {
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
 		return false
 	}
-	// Refuse parameters far above ours, so a corrupted row cannot exhaust memory.
-	if memory > 4*argonMemory || time > 10 || threads == 0 {
+	// Refuse parameters far above ours, so a corrupted row cannot exhaust memory,
+	// and ones too weak to be a hash this package produced.
+	if memory > 4*argonMemory || memory < minArgonMemory || time > 10 || time < 1 || threads == 0 {
 		return false
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
-	if err != nil {
+	if err != nil || len(salt) < minSaltLen {
 		return false
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
-	if err != nil || len(want) == 0 {
+	if err != nil || len(want) < minKeyLen {
 		return false
 	}
-	got := argon2.IDKey([]byte(pw), salt, time, memory, threads, uint32(len(want)))
+	got := deriveKey(pw, salt, time, memory, threads, uint32(len(want)))
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
 // BurnTime does the work of a verification and discards it, so that signing in
 // with an unknown username takes as long as signing in with a wrong password.
 func BurnTime(pw string) {
-	argon2.IDKey([]byte(pw), make([]byte, argonSaltLen), argonTime, argonMemory, argonThreads, argonKeyLen)
+	if len(pw) > maxPasswordLen {
+		return
+	}
+	deriveKey(pw, make([]byte, argonSaltLen), argonTime, argonMemory, argonThreads, argonKeyLen)
 }
 
 func ValidatePassword(pw string) error {
-	if len(pw) < MinPasswordLen {
+	if utf8.RuneCountInString(pw) < MinPasswordLen {
 		return fmt.Errorf("Use at least %d characters.", MinPasswordLen)
 	}
 	if len(pw) > maxPasswordLen {

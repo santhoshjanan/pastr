@@ -80,7 +80,7 @@ func TestReadPasteHidesUnavailable(t *testing.T) {
 	}
 }
 
-func TestCountViewIsAtomic(t *testing.T) {
+func TestConsumeViewIsAtomic(t *testing.T) {
 	s, ctx := newTestStore(t), context.Background()
 	p := seedPaste(t, s, "cccccccccc", func(p *Paste) { p.MaxViews = intp(5) })
 
@@ -90,12 +90,15 @@ func TestCountViewIsAtomic(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ok, err := s.CountView(ctx, p.Slug)
-			if err != nil {
-				t.Error(err)
-			}
-			if ok {
+			v, err := s.ConsumeView(ctx, p.Slug, t0)
+			switch {
+			case err == nil:
+				if v.BodyHTML == "" {
+					t.Error("granted view has no body")
+				}
 				granted.Add(1)
+			case !errors.Is(err, ErrNotFound):
+				t.Error(err)
 			}
 		}()
 	}
@@ -103,31 +106,50 @@ func TestCountViewIsAtomic(t *testing.T) {
 	if granted.Load() != 5 {
 		t.Errorf("granted %d views, want exactly 5", granted.Load())
 	}
-	if err := s.DeleteIfBurned(ctx, p.Slug); err != nil {
-		t.Fatal(err)
-	}
+	// The last view removes the row in the same transaction: nothing is left to clean up.
 	if _, err := s.PasteBySlug(ctx, p.Slug); !errors.Is(err, ErrNotFound) {
 		t.Errorf("burned paste still present: %v", err)
 	}
 }
 
-func TestCountViewUnlimitedAndLoweredLimit(t *testing.T) {
+func TestConsumeViewUnlimitedAndLoweredLimit(t *testing.T) {
 	s, ctx := newTestStore(t), context.Background()
 	p := seedPaste(t, s, "dddddddddd", nil)
-	for i := 0; i < 3; i++ {
-		if ok, _ := s.CountView(ctx, p.Slug); !ok {
-			t.Fatal("unlimited paste refused a view")
+	for i := 1; i <= 3; i++ {
+		v, err := s.ConsumeView(ctx, p.Slug, t0)
+		if err != nil || v.ViewCount != i {
+			t.Fatalf("view %d: count %d, err %v", i, v.ViewCount, err)
 		}
 	}
 	// Owner lowers the limit below the current count: the next read must be refused.
 	got, _ := s.PasteBySlug(ctx, p.Slug)
 	got.MaxViews = intp(2)
 	s.UpdatePaste(ctx, got)
-	if ok, _ := s.CountView(ctx, p.Slug); ok {
-		t.Error("view granted past a lowered limit")
+	if _, err := s.ConsumeView(ctx, p.Slug, t0); !errors.Is(err, ErrNotFound) {
+		t.Errorf("view granted past a lowered limit: %v", err)
 	}
 	if _, err := s.ReadPaste(ctx, p.Slug, t0); !errors.Is(err, ErrNotFound) {
 		t.Errorf("exhausted paste readable: %v", err)
+	}
+	// It can no longer be read, so the sweep removes it even though it never expires.
+	if n, _ := s.DeleteExpiredPastes(ctx, t0); n != 1 {
+		t.Errorf("sweep removed %d exhausted pastes, want 1", n)
+	}
+}
+
+func TestConsumeViewRespectsExpiryAndDisabledOwner(t *testing.T) {
+	s, ctx := newTestStore(t), context.Background()
+	exp := t0.Add(time.Hour)
+	p := seedPaste(t, s, "gggggggggg", func(p *Paste) { p.ExpiresAt = &exp })
+	if _, err := s.ConsumeView(ctx, p.Slug, exp); !errors.Is(err, ErrNotFound) {
+		t.Errorf("expired paste consumed: %v", err)
+	}
+	s.SetDisabled(ctx, p.UserID, true)
+	if _, err := s.ConsumeView(ctx, p.Slug, t0); !errors.Is(err, ErrNotFound) {
+		t.Errorf("disabled owner's paste consumed: %v", err)
+	}
+	if got, _ := s.PasteBySlug(ctx, p.Slug); got.ViewCount != 0 {
+		t.Errorf("refused reads were counted: %d", got.ViewCount)
 	}
 }
 

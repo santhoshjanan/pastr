@@ -11,7 +11,10 @@ import (
 	"github.com/santhoshjanan/pastr/internal/store"
 )
 
-const msgBadLogin = "That username or password isn't right."
+const (
+	msgBadLogin      = "That username or password isn't right."
+	maxUsernameInput = 64
+)
 
 func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 	if currentUser(r) != nil {
@@ -26,7 +29,25 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 	userKey, ipKey := "u:"+username, "ip:"+s.clientIP(r)
 
-	if !s.logins.Allowed(userKey) || !s.logins.Allowed(ipKey) {
+	badLogin := func() {
+		s.render(w, r, http.StatusUnauthorized, "login.html", pageData{Title: "Sign in", Data: username, Error: msgBadLogin})
+	}
+	if len(username) > maxUsernameInput { // cannot be a real account; skip the throttle and the hash
+		username = ""
+		badLogin()
+		return
+	}
+	// Both slots are reserved before the password is checked, so a burst of parallel
+	// guesses cannot outrun the limit. A successful sign-in hands them back.
+	okUser := s.logins.Attempt(userKey)
+	okIP := s.logins.Attempt(ipKey)
+	if !okUser || !okIP {
+		if okUser {
+			s.logins.Release(userKey)
+		}
+		if okIP {
+			s.logins.Release(ipKey)
+		}
 		s.render(w, r, http.StatusTooManyRequests, "login.html",
 			pageData{Title: "Sign in", Data: username, Error: "Too many tries. Wait a few minutes, then try again."})
 		return
@@ -43,12 +64,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		s.logins.Fail(userKey)
-		s.logins.Fail(ipKey)
-		s.render(w, r, http.StatusUnauthorized, "login.html", pageData{Title: "Sign in", Data: username, Error: msgBadLogin})
+		badLogin() // the reserved slots stay spent
 		return
 	}
 	s.logins.Reset(userKey)
+	s.logins.Release(ipKey)
 	s.startSession(w, r, u.ID, "/?e=login")
 }
 
@@ -98,7 +118,7 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, status, "signup.html", pageData{Title: "Create an account", Data: raw, Error: msg})
 	}
 	ipKey := "ip:" + s.clientIP(r)
-	if !s.signups.Allowed(ipKey) {
+	if !s.signups.Attempt(ipKey) {
 		reject(http.StatusTooManyRequests, "Too many sign-ups from here. Try again later.")
 		return
 	}
@@ -117,7 +137,6 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.signups.Fail(ipKey) // every attempt that reaches the database counts
 	u, err := s.store.CreateUser(r.Context(), username, hash, false, s.now())
 	if errors.Is(err, store.ErrConflict) {
 		reject(http.StatusUnprocessableEntity, "That username is taken.")
@@ -184,7 +203,8 @@ func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, r, err)
 			return
 		}
-		http.Redirect(w, r, "/account?saved=password", http.StatusSeeOther)
+		// Changing the password ended every session, this one included; start a fresh one here.
+		s.startSession(w, r, u.ID, "/account?saved=password")
 	default:
 		s.gone(w, r)
 	}

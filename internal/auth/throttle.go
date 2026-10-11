@@ -5,57 +5,84 @@ import (
 	"time"
 )
 
-// Throttle counts recent failures per key in memory. Nothing is persisted,
-// so keys that contain IP addresses vanish on restart.
+// maxThrottleKeys bounds memory when a flood of distinct keys arrives.
+const maxThrottleKeys = 20_000
+
+// Throttle limits attempts per key within a sliding window, in memory only.
+// Nothing is persisted, so keys that contain IP addresses vanish on restart.
 type Throttle struct {
-	mu     sync.Mutex
-	max    int
-	window time.Duration
-	now    func() time.Time
-	fails  map[string][]time.Time
+	mu       sync.Mutex
+	max      int
+	window   time.Duration
+	now      func() time.Time
+	attempts map[string][]time.Time
 }
 
 func NewThrottle(max int, window time.Duration, now func() time.Time) *Throttle {
-	return &Throttle{max: max, window: window, now: now, fails: map[string][]time.Time{}}
+	return &Throttle{max: max, window: window, now: now, attempts: map[string][]time.Time{}}
 }
 
-func (t *Throttle) Allowed(key string) bool {
+// Attempt reserves a slot for key and reports whether one was free. Checking and
+// recording are one step, so parallel requests cannot all slip under the limit.
+func (t *Throttle) Attempt(key string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return len(t.recent(key)) < t.max
+	recent := t.recent(key)
+	if len(recent) >= t.max {
+		return false
+	}
+	if _, known := t.attempts[key]; !known && len(t.attempts) >= maxThrottleKeys {
+		t.evict()
+	}
+	t.attempts[key] = append(recent, t.now())
+	return true
 }
 
-func (t *Throttle) Fail(key string) {
+// Release hands back the most recent slot, for an attempt that turned out to be legitimate.
+func (t *Throttle) Release(key string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.fails[key] = append(t.recent(key), t.now())
-	if len(t.fails) > 10_000 { // bound memory under a flood of distinct keys
-		for k := range t.fails {
-			if len(t.recent(k)) == 0 {
-				delete(t.fails, k)
-			}
-		}
+	if a := t.attempts[key]; len(a) > 1 {
+		t.attempts[key] = a[:len(a)-1]
+	} else {
+		delete(t.attempts, key)
 	}
 }
 
 func (t *Throttle) Reset(key string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	delete(t.fails, key)
+	delete(t.attempts, key)
 }
 
+// recent drops attempts older than the window and returns what is left.
 func (t *Throttle) recent(key string) []time.Time {
+	all := t.attempts[key]
 	cutoff := t.now().Add(-t.window)
-	kept := t.fails[key][:0]
-	for _, at := range t.fails[key] {
+	kept := all[:0]
+	for _, at := range all {
 		if at.After(cutoff) {
 			kept = append(kept, at)
 		}
 	}
 	if len(kept) == 0 {
-		delete(t.fails, key)
+		delete(t.attempts, key)
 		return nil
 	}
-	t.fails[key] = kept
+	t.attempts[key] = kept
 	return kept
+}
+
+// evict makes room when the map is full: stale keys go first, then arbitrary ones.
+// Dropping a live key forgives its attempts, which is the price of a hard memory cap.
+func (t *Throttle) evict() {
+	for k := range t.attempts {
+		t.recent(k)
+	}
+	for k := range t.attempts {
+		if len(t.attempts) < maxThrottleKeys*9/10 {
+			return
+		}
+		delete(t.attempts, k)
+	}
 }

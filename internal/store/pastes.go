@@ -121,27 +121,52 @@ func (s *Store) DeletePaste(ctx context.Context, slug string, userID int64) erro
 	return affected(res, err)
 }
 
-// CountView records one view. It reports false when the view limit is already used up.
-// The check and the increment are one statement, so concurrent readers cannot overshoot.
-func (s *Store) CountView(ctx context.Context, slug string) (bool, error) {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE pastes SET view_count = view_count + 1
-		 WHERE slug = ? AND (max_views IS NULL OR view_count < max_views)`, slug)
+// ConsumeView counts one view and returns the paste, or ErrNotFound when the paste
+// is expired, out of views, or owned by a disabled user. The check, the increment and
+// the removal of a paste that has just used its last view happen in one transaction,
+// so concurrent readers cannot overshoot the limit and a burned body is not left behind.
+func (s *Store) ConsumeView(ctx context.Context, slug string, now time.Time) (PasteView, error) {
+	var v PasteView
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return false, err
+		return v, err
 	}
-	n, err := res.RowsAffected()
-	return n == 1, err
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx,
+		`UPDATE pastes SET view_count = view_count + 1
+		 WHERE slug = ?
+		   AND (expires_at IS NULL OR expires_at > ?)
+		   AND (max_views IS NULL OR view_count < max_views)
+		   AND user_id IN (SELECT id FROM users WHERE disabled = 0)`, slug, now.Unix())
+	if err != nil {
+		return v, err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return v, err
+	} else if n == 0 {
+		return v, ErrNotFound
+	}
+	p, err := scanPaste(tx.QueryRowContext(ctx,
+		`SELECT `+pasteCols+`, u.display_name, u.display_link
+		 FROM pastes p JOIN users u ON u.id = p.user_id WHERE p.slug = ?`, slug), &v.AuthorName, &v.AuthorLink)
+	if err != nil {
+		return v, err
+	}
+	v.Paste = p
+	if p.MaxViews != nil && p.ViewCount >= *p.MaxViews {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM pastes WHERE slug = ?`, slug); err != nil {
+			return v, err
+		}
+	}
+	return v, tx.Commit()
 }
 
-func (s *Store) DeleteIfBurned(ctx context.Context, slug string) error {
-	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM pastes WHERE slug = ? AND max_views IS NOT NULL AND view_count >= max_views`, slug)
-	return err
-}
-
+// DeleteExpiredPastes removes pastes nobody can read any more: past their expiry,
+// or at their view limit (which an owner can cause by lowering the limit).
 func (s *Store) DeleteExpiredPastes(ctx context.Context, now time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM pastes WHERE expires_at IS NOT NULL AND expires_at <= ?`, now.Unix())
+	res, err := s.db.ExecContext(ctx, `DELETE FROM pastes
+		 WHERE (expires_at IS NOT NULL AND expires_at <= ?)
+		    OR (max_views IS NOT NULL AND view_count >= max_views)`, now.Unix())
 	if err != nil {
 		return 0, err
 	}

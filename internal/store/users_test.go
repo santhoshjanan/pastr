@@ -109,3 +109,15 @@ func TestReopenKeepsData(t *testing.T) {
 		t.Errorf("CountUsers after reopen = %d", n)
 	}
 }
+
+func TestPasswordChangeEndsSessions(t *testing.T) {
+	s, ctx := newTestStore(t), context.Background()
+	u, _ := s.CreateUser(ctx, "ana", "hash", false, t0)
+	s.CreateSession(ctx, Session{TokenHash: "stolen", UserID: u.ID, CSRFToken: "c", ExpiresAt: t0.Add(time.Hour), CreatedAt: t0})
+	if err := s.UpdatePassword(ctx, u.ID, "new"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SessionByTokenHash(ctx, "stolen", t0); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a session survived the password change: %v", err)
+	}
+}

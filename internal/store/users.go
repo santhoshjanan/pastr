@@ -92,9 +92,21 @@ func (s *Store) UpdateProfile(ctx context.Context, id int64, name, link string) 
 	return err
 }
 
+// UpdatePassword sets a new hash and ends every session the user has, so a stolen
+// session does not outlive the password it was created under.
 func (s *Store) UpdatePassword(ctx context.Context, id int64, hash string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, id)
-	return err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, id); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // SetDisabled flips the flag and, when disabling, ends every session the user has.
