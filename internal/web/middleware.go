@@ -5,16 +5,18 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
-	"net"
 	"net/http"
+	"net/netip"
+	"runtime/debug"
 	"strings"
 
 	"github.com/santhoshjanan/pastr/internal/store"
 )
 
 const (
-	cookieName     = "pastr_session"
-	maxRequestBody = 256 * 1024
+	cookieName = "pastr_session"
+	// A 100 KB body can triple in size once form-encoded.
+	maxRequestBody = 512 * 1024
 )
 
 type ctxKey int
@@ -44,22 +46,32 @@ func (s *Server) recoverer(next http.Handler) http.Handler {
 		r = r.WithContext(context.WithValue(r.Context(), keyRequestID, id))
 		defer func() {
 			if v := recover(); v != nil {
-				s.log.Error("panic", "request_id", id, "path", r.URL.Path, "panic", v)
-				s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke", NoNav: true, NoScript: true})
+				if v == http.ErrAbortHandler {
+					panic(v)
+				}
+				// The path is left out: paste URLs are secrets.
+				s.log.Error("panic", "request_id", id, "panic", v, "stack", string(debug.Stack()))
+				s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke", Error: msgBroke, NoNav: true, NoScript: true})
 			}
 		}()
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (s *Server) securityHeaders(next http.Handler) http.Handler {
+// contentSecurityPolicy builds the policy. styleExtra is empty everywhere except
+// the editor pages, which pass a per-response nonce for the styles Trix injects.
+func (s *Server) contentSecurityPolicy(styleExtra string) string {
 	script, connect := "'self'", "'self'"
 	if o := s.cfg.UmamiOrigin(); o != "" {
 		script += " " + o
 		connect += " " + o
 	}
-	csp := "default-src 'none'; style-src 'self'; script-src " + script + "; connect-src " + connect +
+	return "default-src 'none'; style-src 'self'" + styleExtra + "; script-src " + script + "; connect-src " + connect +
 		"; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+}
+
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	csp := s.contentSecurityPolicy("")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Content-Security-Policy", csp)
@@ -107,7 +119,8 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		}
 		if sess := currentSession(r); sess != nil {
 			if err := r.ParseForm(); err != nil {
-				http.Error(w, "Request too large", http.StatusRequestEntityTooLarge)
+				s.render(w, r, http.StatusRequestEntityTooLarge, "error.html", pageData{
+					Title: "That's too long", Error: "Go back, trim it down, and try again.", NoNav: true, NoScript: true})
 				return
 			}
 			if subtle.ConstantTimeCompare([]byte(r.PostFormValue("csrf")), []byte(sess.CSRFToken)) != 1 {
@@ -142,17 +155,20 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 // clientIP is used only as an in-memory throttle key. The forwarded header is
 // believed only when the request arrives from the configured proxy.
 func (s *Server) clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	ap, err := netip.ParseAddrPort(r.RemoteAddr)
 	if err != nil {
-		host = r.RemoteAddr
+		return r.RemoteAddr
 	}
-	if s.cfg.TrustedProxy != "" && host == s.cfg.TrustedProxy {
-		parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
-		if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
-			return last
+	peer := ap.Addr().Unmap()
+	if s.hasTrustedProxy && s.trustedProxy.Contains(peer) {
+		// The proxy appends the address it saw, so the last entry across every
+		// header line is the only one a client cannot forge.
+		parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+		if client, err := netip.ParseAddr(strings.TrimSpace(parts[len(parts)-1])); err == nil {
+			return client.Unmap().String()
 		}
 	}
-	return host
+	return peer.String()
 }
 
 func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {

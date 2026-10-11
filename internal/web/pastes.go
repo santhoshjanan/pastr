@@ -3,9 +3,11 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/santhoshjanan/pastr/internal/auth"
 	"github.com/santhoshjanan/pastr/internal/paste"
 	"github.com/santhoshjanan/pastr/internal/sanitize"
 	"github.com/santhoshjanan/pastr/internal/store"
@@ -85,8 +87,24 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, "list.html", pageData{Title: "My pastes", Track: trackFrom(r), TrackProps: "{}", Data: rows})
 }
 
+// editorNonce allows the <style> elements Trix adds to the page, and nothing else
+// inline, for this one response. No other page relaxes the style policy.
+func (s *Server) editorNonce(w http.ResponseWriter) string {
+	nonce, err := auth.NewToken()
+	if err != nil {
+		return ""
+	}
+	w.Header().Set("Content-Security-Policy", s.contentSecurityPolicy(" 'nonce-"+nonce+"'"))
+	return nonce
+}
+
+func (s *Server) renderForm(w http.ResponseWriter, r *http.Request, status int, d pageData) {
+	d.StyleNonce = s.editorNonce(w)
+	s.render(w, r, status, "form.html", d)
+}
+
 func (s *Server) handleNewForm(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, "form.html", pageData{Title: "New paste", Data: formData{Reveal: "tap", Expiry: "never"}})
+	s.renderForm(w, r, http.StatusOK, pageData{Title: "New paste", Data: formData{Reveal: "tap", Expiry: "never"}})
 }
 
 // readForm validates the submitted paste fields onto p. The returned formData
@@ -100,6 +118,9 @@ func (s *Server) readForm(r *http.Request, p *store.Paste, editing bool) (formDa
 	}
 	body := sanitize.HTML(raw)
 	fd.Body = body
+	if len(body) > paste.MaxBodyBytes { // links gain attributes when sanitised
+		return fd, errors.New("That's too long. Keep it under 100 KB.")
+	}
 
 	title, err := paste.ValidateTitle(fd.Title)
 	if err != nil {
@@ -114,6 +135,9 @@ func (s *Server) readForm(r *http.Request, p *store.Paste, editing bool) (formDa
 	maxViews, err := paste.ParseMaxViews(fd.MaxViews)
 	if err != nil {
 		return fd, err
+	}
+	if editing && maxViews != nil && *maxViews <= p.ViewCount {
+		return fd, fmt.Errorf("It's already been viewed %s. Pick a higher limit, or leave it blank.", times(p.ViewCount))
 	}
 	if !(editing && fd.Expiry == "keep") {
 		exp, err := paste.ExpiresAt(fd.Expiry, s.now())
@@ -130,7 +154,7 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	p := store.Paste{UserID: currentUser(r).ID, CreatedAt: s.now()}
 	fd, err := s.readForm(r, &p, false)
 	if err != nil {
-		s.render(w, r, http.StatusUnprocessableEntity, "form.html", pageData{Title: "New paste", Error: err.Error(), Data: fd})
+		s.renderForm(w, r, http.StatusUnprocessableEntity, pageData{Title: "New paste", Error: err.Error(), Data: fd})
 		return
 	}
 	// A slug collision is astronomically unlikely; retry a few times all the same.
@@ -159,6 +183,13 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request, p store.Pas
 	})
 }
 
+func times(n int) string {
+	if n == 1 {
+		return "once"
+	}
+	return strconv.Itoa(n) + " times"
+}
+
 // expiryLabel keeps event properties to the known choices.
 func expiryLabel(x string) string {
 	switch x {
@@ -174,13 +205,13 @@ func (s *Server) handleEditForm(w http.ResponseWriter, r *http.Request, p store.
 	if p.MaxViews != nil {
 		fd.MaxViews = strconv.Itoa(*p.MaxViews)
 	}
-	s.render(w, r, http.StatusOK, "form.html", pageData{Title: "Edit paste", Colour: paste.SignalColour(p.Slug), Data: fd})
+	s.renderForm(w, r, http.StatusOK, pageData{Title: "Edit paste", Colour: paste.SignalColour(p.Slug), Data: fd})
 }
 
 func (s *Server) handleEdit(w http.ResponseWriter, r *http.Request, p store.Paste) {
 	fd, err := s.readForm(r, &p, true)
 	if err != nil {
-		s.render(w, r, http.StatusUnprocessableEntity, "form.html",
+		s.renderForm(w, r, http.StatusUnprocessableEntity,
 			pageData{Title: "Edit paste", Colour: paste.SignalColour(p.Slug), Error: err.Error(), Data: fd})
 		return
 	}

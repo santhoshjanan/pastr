@@ -1,7 +1,7 @@
 {{define "main"}}
 <section class="poster">
-  <h1 class="poster__title">Something broke.</h1>
+  <h1 class="poster__title">{{.Title}}.</h1>
   <div class="bar" aria-hidden="true"></div>
-  <p class="poster__meta">That's on our side. Try again in a moment.</p>
+  <p class="poster__meta">{{.Error}}</p>
 </section>
 {{end}}

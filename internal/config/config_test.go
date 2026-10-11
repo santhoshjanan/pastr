@@ -33,6 +33,7 @@ func TestLoadErrors(t *testing.T) {
 		"half umami":        {"PASTR_BASE_URL": "https://a.b", "PASTR_UMAMI_WEBSITE_ID": "x"},
 		"bad umami url":     {"PASTR_BASE_URL": "https://a.b", "PASTR_UMAMI_WEBSITE_ID": "x", "PASTR_UMAMI_SCRIPT_URL": "nope"},
 		"half admin":        {"PASTR_BASE_URL": "https://a.b", "PASTR_ADMIN_USERNAME": "me"},
+		"bad proxy":         {"PASTR_BASE_URL": "https://a.b", "PASTR_TRUSTED_PROXY": "caddy"},
 	}
 	for name, m := range cases {
 		if _, err := Load(env(m)); err == nil {

@@ -105,6 +105,7 @@ func TestTimeLeft(t *testing.T) {
 		{at(5 * time.Hour), "gone in 5 hours"},
 		{at(36 * time.Hour), "gone in 1 day"},
 		{at(20 * 24 * time.Hour), "gone in 20 days"},
+		{at(24*time.Hour - 5*time.Second), "gone in 1 day"}, // just created with a one-day expiry
 	}
 	for _, c := range cases {
 		if got := TimeLeft(c.in, now); got != c.want {
@@ -130,10 +131,12 @@ func TestIsPreviewCrawler(t *testing.T) {
 			t.Errorf("not detected: %s", ua)
 		}
 	}
+	if !IsPreviewCrawler("") {
+		t.Error("a request with no user agent is not a browser")
+	}
 	people := []string{
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
 		"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36",
-		"",
 	}
 	for _, ua := range people {
 		if IsPreviewCrawler(ua) {

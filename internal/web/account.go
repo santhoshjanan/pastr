@@ -106,6 +106,10 @@ func (s *Server) handleSignupForm(w http.ResponseWriter, r *http.Request) {
 	if !s.signupsOpen(w, r) {
 		return
 	}
+	if currentUser(r) != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
 	s.render(w, r, http.StatusOK, "signup.html", pageData{Title: "Create an account", Data: ""})
 }
 
@@ -122,13 +126,16 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 		reject(http.StatusTooManyRequests, "Too many sign-ups from here. Try again later.")
 		return
 	}
+	// A typo is not an attempt: validation errors hand the slot back.
 	username, err := auth.ValidateUsername(raw)
 	if err != nil {
+		s.signups.Release(ipKey)
 		reject(http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	password := r.PostFormValue("password")
 	if err := auth.ValidatePassword(password); err != nil {
+		s.signups.Release(ipKey)
 		reject(http.StatusUnprocessableEntity, err.Error())
 		return
 	}

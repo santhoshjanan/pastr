@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -130,12 +131,17 @@ func sweep(ctx context.Context, st *store.Store, now time.Time, log *slog.Logger
 	}
 }
 
+// healthURL turns the listen address into one the health check can dial:
+// loopback when pastr listens on every interface, the given host otherwise.
 func healthURL(addr string) string {
-	_, port, err := net.SplitHostPort(addr)
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		port = "8080"
+		host, port = "", "8080"
 	}
-	return "http://127.0.0.1:" + port + "/healthz"
+	if ip, perr := netip.ParseAddr(host); host == "" || (perr == nil && ip.IsUnspecified()) {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port) + "/healthz"
 }
 
 // healthcheck is the container's HEALTHCHECK command; the image has no shell or curl.

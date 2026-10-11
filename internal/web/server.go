@@ -9,7 +9,9 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/santhoshjanan/pastr/internal/auth"
@@ -34,6 +36,9 @@ type Server struct {
 	pages      map[string]*template.Template
 	assetVer   string
 	baseOrigin string
+
+	trustedProxy    netip.Prefix
+	hasTrustedProxy bool
 }
 
 func New(cfg config.Config, st *store.Store, logger *slog.Logger) (*Server, error) {
@@ -44,6 +49,9 @@ func New(cfg config.Config, st *store.Store, logger *slog.Logger) (*Server, erro
 		return nil, err
 	}
 	s.baseOrigin = u.Scheme + "://" + u.Host
+	if s.trustedProxy, s.hasTrustedProxy, err = cfg.TrustedProxyPrefix(); err != nil {
+		return nil, err
+	}
 	if s.assetVer, err = hashFS(staticFS); err != nil {
 		return nil, err
 	}
@@ -94,7 +102,8 @@ func (s *Server) staticHandler() http.Handler {
 	sub, _ := fs.Sub(staticFS, "static")
 	files := http.FileServerFS(sub)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.PathValue("ver") != s.assetVer {
+		// Directories are not listed.
+		if p := r.PathValue("path"); r.PathValue("ver") != s.assetVer || p == "" || strings.HasSuffix(p, "/") {
 			s.gone(w, r)
 			return
 		}

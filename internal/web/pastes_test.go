@@ -184,3 +184,31 @@ func TestEmptyListAndEditorAssets(t *testing.T) {
 		t.Error("editor loaded on a page that does not need it")
 	}
 }
+
+func TestEditorPagesGetAStyleNonceAndNothingElseDoes(t *testing.T) {
+	e := newTestServer(t)
+	c := e.signIn("ana", false)
+	nonceRE := regexp.MustCompile(`style-src 'self' 'nonce-([A-Za-z0-9_-]{16,})'`)
+
+	resp, body := e.get(c, "/new")
+	m := nonceRE.FindStringSubmatch(resp.Header.Get("Content-Security-Policy"))
+	if m == nil {
+		t.Fatalf("no style nonce in the editor page policy: %s", resp.Header.Get("Content-Security-Policy"))
+	}
+	if !strings.Contains(body, `<meta name="trix-csp-nonce" content="`+m[1]+`">`) {
+		t.Error("editor page does not hand the nonce to Trix")
+	}
+	resp2, _ := e.get(c, "/new")
+	if m2 := nonceRE.FindStringSubmatch(resp2.Header.Get("Content-Security-Policy")); m2 == nil || m2[1] == m[1] {
+		t.Error("the nonce must change on every response")
+	}
+
+	_, slug := e.create(c, validForm())
+	for _, path := range []string{"/p/" + slug, "/", "/login"} {
+		resp, _ := e.get(e.client(), path)
+		csp := resp.Header.Get("Content-Security-Policy")
+		if strings.Contains(csp, "nonce-") || strings.Contains(csp, "unsafe-inline") {
+			t.Errorf("%s has a relaxed style policy: %s", path, csp)
+		}
+	}
+}

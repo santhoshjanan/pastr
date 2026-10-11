@@ -23,12 +23,16 @@ type pageData struct {
 	// must drop the navigation or our script say so here instead.
 	NoNav    bool
 	NoScript bool
+	// StyleNonce is set only on editor pages; see Server.editorNonce.
+	StyleNonce string
 
 	User        *store.User
 	CSRF        string
 	UmamiScript string
 	UmamiID     string
 }
+
+const msgBroke = "That's on our side. Try again in a moment."
 
 var pageNames = []string{
 	"gone.html", "error.html", "login.html", "signup.html", "account.html",
@@ -73,6 +77,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page
 // gone is the one response for anything a visitor may not see or that does not exist.
 func (s *Server) gone(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
+	w.Header().Set("Cache-Control", "no-store")
 	s.render(w, r, http.StatusNotFound, "gone.html", pageData{Title: "This one's gone", Track: "gone", NoNav: true})
 }
 
@@ -83,6 +88,7 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	id, _ := r.Context().Value(keyRequestID).(string)
-	s.log.Error("request failed", "request_id", id, "path", r.URL.Path, "err", err)
-	s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke", NoNav: true, NoScript: true})
+	// The route pattern is logged, not the path: paste URLs are secrets.
+	s.log.Error("request failed", "request_id", id, "route", r.Pattern, "err", err)
+	s.render(w, r, http.StatusInternalServerError, "error.html", pageData{Title: "Something broke", Error: msgBroke, NoNav: true, NoScript: true})
 }

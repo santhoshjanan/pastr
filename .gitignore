@@ -19,3 +19,6 @@
 
 # Plan execution scratch
 .superpowers/
+
+# Local assistant settings
+.claude/

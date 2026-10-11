@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -48,6 +49,9 @@ func Load(getenv func(string) string) (Config, error) {
 			return c, fmt.Errorf("PASTR_UMAMI_SCRIPT_URL: %w", err)
 		}
 	}
+	if _, _, err := c.TrustedProxyPrefix(); err != nil {
+		return c, fmt.Errorf("PASTR_TRUSTED_PROXY: must be an IP address or a CIDR range such as 172.18.0.0/16: %w", err)
+	}
 	if (c.AdminUsername == "") != (c.AdminPassword == "") {
 		return c, errors.New("set both PASTR_ADMIN_USERNAME and PASTR_ADMIN_PASSWORD, or neither")
 	}
@@ -63,6 +67,24 @@ func (c Config) UmamiOrigin() string {
 		return ""
 	}
 	return u.Scheme + "://" + u.Host
+}
+
+// TrustedProxyPrefix returns the address range whose X-Forwarded-For header is
+// believed. ok is false when no proxy is configured.
+func (c Config) TrustedProxyPrefix() (prefix netip.Prefix, ok bool, err error) {
+	if c.TrustedProxy == "" {
+		return prefix, false, nil
+	}
+	if strings.Contains(c.TrustedProxy, "/") {
+		prefix, err = netip.ParsePrefix(c.TrustedProxy)
+		return prefix.Masked(), err == nil, err
+	}
+	addr, err := netip.ParseAddr(c.TrustedProxy)
+	if err != nil {
+		return prefix, false, err
+	}
+	addr = addr.Unmap()
+	return netip.PrefixFrom(addr, addr.BitLen()), true, nil
 }
 
 func (c Config) SecureCookies() bool { return strings.HasPrefix(c.BaseURL, "https://") }

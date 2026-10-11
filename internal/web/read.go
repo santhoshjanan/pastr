@@ -3,6 +3,7 @@ package web
 import (
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/santhoshjanan/pastr/internal/paste"
 	"github.com/santhoshjanan/pastr/internal/store"
@@ -15,6 +16,16 @@ type readData struct {
 	TimeLeft string
 	Date     string
 	URL      string
+}
+
+// isPrefetch reports a browser or proxy loading the page ahead of a visit that may never happen.
+func isPrefetch(r *http.Request) bool {
+	for _, h := range []string{"Sec-Purpose", "Purpose", "X-Purpose", "X-Moz"} {
+		if v := strings.ToLower(r.Header.Get(h)); strings.Contains(v, "prefetch") || strings.Contains(v, "preview") {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +46,7 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	url := s.cfg.BaseURL + "/p/" + slug
 	// Link-preview fetchers get the title only, and are not readers.
-	if paste.IsPreviewCrawler(r.UserAgent()) {
+	if paste.IsPreviewCrawler(r.UserAgent()) || isPrefetch(r) {
 		s.render(w, r, http.StatusOK, "preview.html",
 			pageData{Title: v.Title, Colour: paste.SignalColour(slug), NoNav: true, NoScript: true, Data: readData{Paste: v, URL: url}})
 		return

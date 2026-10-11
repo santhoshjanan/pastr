@@ -107,6 +107,11 @@ func TimeLeft(expires *time.Time, now time.Time) string {
 		return ""
 	}
 	d := expires.Sub(now)
+	if d >= time.Hour {
+		// Rounded to the minute, so a paste saved a moment ago with a one-day
+		// expiry reads "1 day", not "23 hours".
+		d = d.Round(time.Minute)
+	}
 	switch {
 	case d < time.Minute:
 		return "gone in under a minute"
