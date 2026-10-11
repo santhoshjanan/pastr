@@ -19,7 +19,7 @@
   </header>
   {{if .Data.Gated}}
   <details class="reveal">
-    <summary class="reveal__control" data-umami-event="reveal" data-umami-event-slug="{{.Data.Paste.Slug}}">Show the text</summary>
+    <summary class="reveal__control" data-umami-event="reveal" data-umami-event-slug="{{.Data.Paste.Slug}}"><span class="when-closed">Show the text</span><span class="when-open">Hide the text</span></summary>
     <div class="prose">{{.Data.Body}}</div>
   </details>
   {{else}}

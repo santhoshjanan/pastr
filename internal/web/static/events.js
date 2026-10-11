@@ -13,6 +13,17 @@
       send(body.dataset.track, props);
     });
   }
+  // Link ready: set the URL one character at a time.
+  var typed = document.querySelector("[data-typeset]");
+  if (typed && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    var full = typed.textContent, i = 0;
+    typed.setAttribute("aria-label", full);
+    typed.textContent = "";
+    (function step() {
+      typed.textContent = full.slice(0, ++i);
+      if (i < full.length) setTimeout(step, 12);
+    })();
+  }
   document.addEventListener("click", function (ev) {
     var el = ev.target.closest("[data-copy]");
     if (!el || !navigator.clipboard) return;

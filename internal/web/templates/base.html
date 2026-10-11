@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <title>{{.Title}}</title>
 {{block "head" .}}<meta name="robots" content="noindex, nofollow">{{end}}
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="{{asset "app.css"}}">
 {{if .UmamiScript}}<script defer src="{{.UmamiScript}}" data-website-id="{{.UmamiID}}"></script>{{end}}
 {{if not .NoScript}}{{block "scripts" .}}<script defer src="{{asset "events.js"}}"></script>{{end}}{{end}}
