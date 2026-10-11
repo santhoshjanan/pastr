@@ -1,0 +1,10 @@
+{{define "main"}}
+<section class="poster poster--ready">
+  <h1 class="poster__title">Link ready</h1>
+  <div class="bar" aria-hidden="true"></div>
+  <p class="ready__title">{{.Data.Paste.Title}}</p>
+  <p class="ready__url" data-typeset>{{.Data.URL}}</p>
+  <button type="button" class="button" data-copy="{{.Data.URL}}" data-slug="{{.Data.Paste.Slug}}"><span data-copy-label>Copy link</span></button>
+  <p class="ready__links"><a class="link" href="/p/{{.Data.Paste.Slug}}">Open it</a> <a class="link" href="/p/{{.Data.Paste.Slug}}/edit">Edit</a> <a class="link" href="/">My pastes</a></p>
+</section>
+{{end}}

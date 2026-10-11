@@ -126,8 +126,13 @@ func hashFS(fsys fs.FS) (string, error) {
 
 func (s *Server) pasteRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /p/{slug}", s.handleRead)
-	// Replaced by the real list in Task 9.
-	mux.HandleFunc("GET /{$}", s.requireUser(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("signed in")) }))
+	mux.HandleFunc("GET /{$}", s.requireUser(s.handleList))
+	mux.HandleFunc("GET /new", s.requireUser(s.handleNewForm))
+	mux.HandleFunc("POST /new", s.requireUser(s.handleCreate))
+	mux.HandleFunc("GET /p/{slug}/ready", s.requireOwner(s.handleReady))
+	mux.HandleFunc("GET /p/{slug}/edit", s.requireOwner(s.handleEditForm))
+	mux.HandleFunc("POST /p/{slug}/edit", s.requireOwner(s.handleEdit))
+	mux.HandleFunc("POST /p/{slug}/delete", s.requireOwner(s.handleDelete))
 }
 
 func (s *Server) adminRoutes(mux *http.ServeMux) {}

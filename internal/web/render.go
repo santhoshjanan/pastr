@@ -33,6 +33,7 @@ type pageData struct {
 var pageNames = []string{
 	"gone.html", "error.html", "login.html", "signup.html", "account.html",
 	"read.html", "preview.html",
+	"list.html", "form.html", "ready.html",
 }
 
 func loadPages(s *Server) (map[string]*template.Template, error) {

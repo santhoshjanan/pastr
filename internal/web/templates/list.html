@@ -1,0 +1,32 @@
+{{define "main"}}
+<section class="index">
+  <header class="index__head">
+    <h1 class="poster__title">My pastes</h1>
+    <div class="bar" aria-hidden="true"></div>
+    <a class="button" href="/new">New paste</a>
+  </header>
+  {{if .Data}}
+  <ul class="index__list">
+    {{range .Data}}
+    <li class="index__row signal-{{.Colour}}">
+      <a class="index__title" href="/p/{{.Paste.Slug}}/edit">{{.Paste.Title}}</a>
+      <span class="index__meta">
+        {{.Paste.ViewCount}}{{if .Paste.MaxViews}} of {{.Paste.MaxViews}}{{end}} views
+        {{if .TimeLeft}} · {{.TimeLeft}}{{end}}
+        · {{if eq .Paste.RevealMode "tap"}}tap to reveal{{else}}shown at once{{end}}
+      </span>
+      <span class="index__actions">
+        <button type="button" class="link" data-copy="{{.URL}}" data-slug="{{.Paste.Slug}}">Copy link</button>
+        <a class="link" href="/p/{{.Paste.Slug}}">Open</a>
+      </span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <div class="empty">
+    <p>Nothing here yet. Write the thing you can't say in the post, then share the link.</p>
+    <div class="living-poster" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  </div>
+  {{end}}
+</section>
+{{end}}

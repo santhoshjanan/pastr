@@ -1,0 +1,46 @@
+{{define "scripts"}}
+<link rel="stylesheet" href="{{asset "vendor/trix.css"}}">
+<script defer src="{{asset "vendor/trix.umd.min.js"}}"></script>
+<script defer src="{{asset "editor.js"}}"></script>
+<script defer src="{{asset "events.js"}}"></script>
+{{end}}
+{{define "main"}}
+<section class="compose">
+  {{if .Error}}<p class="form-error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="{{if .Data.Editing}}/p/{{.Data.Slug}}/edit{{else}}/new{{end}}" class="form">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label class="field field--title"><span class="visually-hidden">Title</span>
+      <textarea name="title" class="poster__title" rows="2" maxlength="120" required placeholder="Title">{{.Data.Title}}</textarea>
+      <small>Shown in the link preview. Keep it spoiler-free.</small></label>
+    <div class="bar" aria-hidden="true"></div>
+
+    <input type="hidden" id="body" name="body" value="{{.Data.Body}}">
+    <trix-toolbar id="toolbar"></trix-toolbar>
+    <trix-editor input="body" toolbar="toolbar" class="prose" aria-label="Text"></trix-editor>
+
+    <div class="settings">
+      <fieldset class="choice"><legend>The text appears</legend>
+        <label><input type="radio" name="reveal" value="tap" {{if eq .Data.Reveal "tap"}}checked{{end}}> after a tap</label>
+        <label><input type="radio" name="reveal" value="immediate" {{if eq .Data.Reveal "immediate"}}checked{{end}}> at once</label>
+      </fieldset>
+      <fieldset class="choice"><legend>It lasts</legend>
+        {{if .Data.Editing}}<label><input type="radio" name="expiry" value="keep" {{if eq .Data.Expiry "keep"}}checked{{end}}> as it is{{if .Data.TimeLeft}} ({{.Data.TimeLeft}}){{end}}</label>{{end}}
+        <label><input type="radio" name="expiry" value="1d" {{if eq .Data.Expiry "1d"}}checked{{end}}> 1 day</label>
+        <label><input type="radio" name="expiry" value="1w" {{if eq .Data.Expiry "1w"}}checked{{end}}> 1 week</label>
+        <label><input type="radio" name="expiry" value="1m" {{if eq .Data.Expiry "1m"}}checked{{end}}> 1 month</label>
+        <label><input type="radio" name="expiry" value="never" {{if eq .Data.Expiry "never"}}checked{{end}}> forever</label>
+      </fieldset>
+      <label class="field field--short"><span>View limit</span>
+        <input name="max_views" inputmode="numeric" pattern="[0-9]*" value="{{.Data.MaxViews}}" placeholder="No limit">
+        <small>The paste deletes itself after this many views.</small></label>
+    </div>
+    <button class="button">{{if .Data.Editing}}Save changes{{else}}Create link{{end}}</button>
+  </form>
+  {{if .Data.Editing}}
+  <form method="post" action="/p/{{.Data.Slug}}/delete" class="form form--danger">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button class="link link--danger">Delete this paste</button>
+  </form>
+  {{end}}
+</section>
+{{end}}
