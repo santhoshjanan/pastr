@@ -89,7 +89,9 @@ a { color: inherit; }
 
 /* The poster: headline, bar, meta */
 
-.poster, .compose { max-width: 46rem; }
+.poster { max-width: 46rem; }
+/* The compose column is exactly as wide as the editor, so title, bar and text share one right edge. */
+.compose { max-width: calc(var(--measure) + 2.2rem + 2 * var(--rule)); }
 .index { max-width: 60rem; }
 
 /* On a wide sheet the read page uses the whole grid: headline and bar across,
